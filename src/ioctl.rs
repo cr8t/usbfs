@@ -1,7 +1,7 @@
 use super::*;
 
 ioctl_readwrite!(usbfs_control, b'U', 0, UsbfsCtrlTransferFfi);
-ioctl_read!(usbfs_setinterface, b'U', 4, UsbfsSetInterface); 
+ioctl_read!(usbfs_setinterface, b'U', 4, UsbfsSetInterface);
 ioctl_read!(usbfs_setconfiguration, b'U', 5, u32);
 ioctl_write_ptr!(usbfs_getdriver, b'U', 8, UsbfsGetDriver);
 ioctl_read!(usbfs_submiturb, b'U', 10, UrbFfi);

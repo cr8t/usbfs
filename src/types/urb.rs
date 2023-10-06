@@ -1,4 +1,4 @@
-use std::{ffi::c_void, fmt};
+use std::{cmp, ffi::c_void, fmt};
 
 use super::UsbfsIsoPacketDesc;
 
@@ -74,7 +74,6 @@ pub struct Urb {
     status: i32,
     flags: u32,
     buffer: Vec<u8>,
-    buffer_length: usize,
     actual_length: usize,
     start_frame: i32,
     info: TransferInfo,
@@ -91,7 +90,6 @@ impl PartialEq for Urb {
             && self.status == rhs.status
             && self.flags == rhs.flags
             && self.buffer == rhs.buffer
-            && self.buffer_length == rhs.buffer_length
             && self.actual_length == rhs.actual_length
             && self.info == rhs.info
             && self.error_count == rhs.error_count
@@ -109,7 +107,6 @@ impl Urb {
             status: 0,
             flags: 0,
             buffer: Vec::new(),
-            buffer_length: 0,
             actual_length: 0,
             start_frame: 0,
             info: TransferInfo::new(),
@@ -192,12 +189,18 @@ impl Urb {
     /// Sets the URB buffer.
     pub fn set_buffer<B: IntoIterator<Item = u8>>(&mut self, buffer: B) {
         self.buffer = buffer.into_iter().collect();
+        self.actual_length = self.buffer.len();
     }
 
     /// Builder function that sets the URB buffer.
     pub fn with_buffer<B: IntoIterator<Item = u8>>(mut self, buffer: B) -> Self {
         self.set_buffer(buffer);
         self
+    }
+
+    /// Gets the URB buffer length.
+    pub fn buffer_length(&self) -> usize {
+        self.buffer.len()
     }
 
     /// Gets the URB actual length.
@@ -207,7 +210,7 @@ impl Urb {
 
     /// Sets the URB actual length.
     pub fn set_actual_length(&mut self, actual_length: usize) {
-        self.actual_length = actual_length;
+        self.actual_length = cmp::min(actual_length, self.buffer.len());
     }
 
     /// Builder function that sets the URB actual length.
@@ -302,12 +305,18 @@ impl Urb {
     }
 
     /// Sets the URB iso_frame_desc.
-    pub fn set_iso_frame_desc<B: IntoIterator<Item = UsbfsIsoPacketDesc>>(&mut self, iso_frame_desc: B) {
+    pub fn set_iso_frame_desc<B: IntoIterator<Item = UsbfsIsoPacketDesc>>(
+        &mut self,
+        iso_frame_desc: B,
+    ) {
         self.iso_frame_desc = iso_frame_desc.into_iter().collect();
     }
 
     /// Builder function that sets the URB iso_frame_desc.
-    pub fn with_iso_frame_desc<B: IntoIterator<Item = UsbfsIsoPacketDesc>>(mut self, iso_frame_desc: B) -> Self {
+    pub fn with_iso_frame_desc<B: IntoIterator<Item = UsbfsIsoPacketDesc>>(
+        mut self,
+        iso_frame_desc: B,
+    ) -> Self {
         self.set_iso_frame_desc(iso_frame_desc);
         self
     }
@@ -330,14 +339,18 @@ impl fmt::Display for Urb {
         }
         write!(f, "], ")?;
 
-        write!(f, r#""buffer_length": {}, "#, self.buffer_length)?;
+        write!(f, r#""buffer_length": {}, "#, self.buffer.len())?;
         write!(f, r#""actual_length": {}, "#, self.actual_length)?;
         write!(f, r#""start_frame": {}, "#, self.start_frame)?;
 
         if self.iso_frame_desc.is_empty() {
             write!(f, r#""stream_id": {}, "#, self.info.stream_id())?;
         } else {
-            write!(f, r#""number_of_packets": {}, "#, self.info.number_of_packets())?;
+            write!(
+                f,
+                r#""number_of_packets": {}, "#,
+                self.info.number_of_packets()
+            )?;
         }
 
         write!(f, r#""error_count": {}, "#, self.error_count)?;
@@ -369,7 +382,9 @@ pub union TransferInfoFfi {
 impl TransferInfoFfi {
     /// Creates a new [TransferInfoFfi].
     pub const fn new() -> Self {
-        Self { number_of_packets: 0 }
+        Self {
+            number_of_packets: 0,
+        }
     }
 
     /// Creates a new [TransferInfoFfi] for isochronous transfers from the provided parameter.
@@ -391,7 +406,7 @@ impl From<&TransferInfo> for TransferInfoFfi {
         if number_of_packets != 0 {
             Self::new_isoc(number_of_packets)
         } else if stream_id != 0 {
-            Self::new_bulk(stream_id) 
+            Self::new_bulk(stream_id)
         } else {
             Self::new()
         }
@@ -414,7 +429,14 @@ impl PartialEq for TransferInfoFfi {
     fn eq(&self, rhs: &Self) -> bool {
         unsafe {
             match (self, rhs) {
-                (Self { number_of_packets: nl }, Self { number_of_packets: nr }) if nl == nr => true,
+                (
+                    Self {
+                        number_of_packets: nl,
+                    },
+                    Self {
+                        number_of_packets: nr,
+                    },
+                ) if nl == nr => true,
                 (Self { stream_id: lid }, Self { stream_id: rid }) if lid == rid => true,
                 _ => false,
             }
@@ -434,7 +456,7 @@ pub struct UrbFfi {
     buffer_length: i32,
     actual_length: i32,
     start_frame: i32,
-    info: TransferInfoFfi, 
+    info: TransferInfoFfi,
     error_count: i32,
     signr: u32,
     usercontext: *mut c_void,
@@ -453,7 +475,7 @@ impl UrbFfi {
             buffer_length: 0,
             actual_length: 0,
             start_frame: 0,
-            info: TransferInfoFfi::new(), 
+            info: TransferInfoFfi::new(),
             error_count: 0,
             signr: 0,
             usercontext: std::ptr::null_mut(),
@@ -485,7 +507,7 @@ impl From<&mut Urb> for UrbFfi {
             buffer_length: val.buffer.len() as i32,
             actual_length: val.actual_length as i32,
             start_frame: val.start_frame,
-            info, 
+            info,
             error_count: val.error_count,
             signr: val.signr,
             usercontext: val.usercontext.as_raw_ptr(),

@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate nix;
 
+mod constants;
 mod error;
 mod ioctl;
-mod constants;
 mod types;
 
 pub use constants::*;
@@ -11,9 +11,9 @@ pub use error::*;
 
 pub use types::cap::UsbfsCap;
 pub use types::connect_info::UsbfsConnectInfo;
-pub use types::disconnect_claim::{UsbfsDisconnectClaim, UsbfsDisconnectClaimFlag};
 pub use types::ctrl_transfer::UsbfsCtrlTransfer;
-pub use types::driver::UsbfsGetDriver;
+pub use types::disconnect_claim::{UsbfsDisconnectClaim, UsbfsDisconnectClaimFlag};
+pub use types::driver::{DriverName, UsbfsGetDriver};
 pub use types::interface::UsbfsSetInterface;
 pub use types::ioctl::{UsbfsIoctl, UsbfsIoctlData};
 pub use types::iso_packet_desc::UsbfsIsoPacketDesc;
@@ -28,7 +28,9 @@ use types::{UrbFfi, UsbfsCtrlTransferFfi, UsbfsIoctlFfi, UsbfsStreamsFfi};
 /// The user is responsible for setting all the relevant [UsbfsCtrlTransfer] fields.
 pub fn usbfs_control(fd: i32, ctrl: &mut UsbfsCtrlTransfer) -> Result<()> {
     let mut ctrl = UsbfsCtrlTransferFfi::from(ctrl);
-    unsafe { ioctl::usbfs_control(fd, &mut ctrl)?; }
+    unsafe {
+        ioctl::usbfs_control(fd, &mut ctrl)?;
+    }
     Ok(())
 }
 
@@ -36,13 +38,17 @@ pub fn usbfs_control(fd: i32, ctrl: &mut UsbfsCtrlTransfer) -> Result<()> {
 ///
 /// The user is responsible for setting all the relevant [UsbfsSetInterface] fields.
 pub fn usbfs_set_interface(fd: i32, set_interface: &mut UsbfsSetInterface) -> Result<()> {
-    unsafe { ioctl::usbfs_setinterface(fd, set_interface)?; }
+    unsafe {
+        ioctl::usbfs_setinterface(fd, set_interface)?;
+    }
     Ok(())
 }
 
 /// USBFS Set Configuration
 pub fn usbfs_set_configuration(fd: i32, config: &mut u32) -> Result<()> {
-    unsafe { ioctl::usbfs_setconfiguration(fd, config)?; }
+    unsafe {
+        ioctl::usbfs_setconfiguration(fd, config)?;
+    }
     Ok(())
 }
 
@@ -50,7 +56,9 @@ pub fn usbfs_set_configuration(fd: i32, config: &mut u32) -> Result<()> {
 ///
 /// The user is responsible for setting all the relevant [UsbfsGetDriver] fields.
 pub fn usbfs_get_driver(fd: i32, get_driver: &mut UsbfsGetDriver) -> Result<()> {
-    unsafe { ioctl::usbfs_getdriver(fd, get_driver)?; }
+    unsafe {
+        ioctl::usbfs_getdriver(fd, get_driver)?;
+    }
     Ok(())
 }
 
@@ -59,13 +67,17 @@ pub fn usbfs_get_driver(fd: i32, get_driver: &mut UsbfsGetDriver) -> Result<()> 
 /// The user is responsible for setting all the relevant [Urb] fields.
 pub fn usbfs_submit_urb(fd: i32, urb: &mut Urb) -> Result<()> {
     let mut urb_ffi = UrbFfi::from(urb);
-    unsafe { ioctl::usbfs_submiturb(fd, &mut urb_ffi)?; }
+    unsafe {
+        ioctl::usbfs_submiturb(fd, &mut urb_ffi)?;
+    }
     Ok(())
 }
 
 /// USBFS Discard URB
 pub fn usbfs_discard_urb(fd: i32) -> Result<()> {
-    unsafe { ioctl::usbfs_discardurb(fd)?; }
+    unsafe {
+        ioctl::usbfs_discardurb(fd)?;
+    }
     Ok(())
 }
 
@@ -73,20 +85,26 @@ pub fn usbfs_discard_urb(fd: i32) -> Result<()> {
 ///
 /// The user is responsible for setting all the relevant [Urb] fields.
 pub fn usbfs_reap_urb_ndelay(fd: i32, urb: &mut Urb) -> Result<()> {
-    let mut urb_ffi = UrbFfi::from(urb);
-    unsafe { ioctl::usbfs_reapurbndelay(fd, &mut urb_ffi)?; }
+    let urb_ffi = UrbFfi::from(urb);
+    unsafe {
+        ioctl::usbfs_reapurbndelay(fd, &urb_ffi)?;
+    }
     Ok(())
 }
 
-/// USBFS Claim Interface 
+/// USBFS Claim Interface
 pub fn usbfs_claim_interface(fd: i32, iface: &mut u32) -> Result<()> {
-    unsafe { ioctl::usbfs_claiminterface(fd, iface)?; }
+    unsafe {
+        ioctl::usbfs_claiminterface(fd, iface)?;
+    }
     Ok(())
 }
 
-/// USBFS Release Interface 
+/// USBFS Release Interface
 pub fn usbfs_release_interface(fd: i32, iface: &mut u32) -> Result<()> {
-    unsafe { ioctl::usbfs_releaseinterface(fd, iface)?; }
+    unsafe {
+        ioctl::usbfs_releaseinterface(fd, iface)?;
+    }
     Ok(())
 }
 
@@ -94,7 +112,9 @@ pub fn usbfs_release_interface(fd: i32, iface: &mut u32) -> Result<()> {
 ///
 /// The user is responsible for setting all the relevant [UsbfsConnectInfo] fields.
 pub fn usbfs_connect_info(fd: i32, info: &mut UsbfsConnectInfo) -> Result<()> {
-    unsafe { ioctl::usbfs_connectinfo(fd, info)?; }
+    unsafe {
+        ioctl::usbfs_connectinfo(fd, info)?;
+    }
     Ok(())
 }
 
@@ -103,37 +123,49 @@ pub fn usbfs_connect_info(fd: i32, info: &mut UsbfsConnectInfo) -> Result<()> {
 /// The user is responsible for setting all the relevant [UsbfsIoctl] fields.
 pub fn usbfs_ioctl(fd: i32, ioctl: &mut UsbfsIoctl) -> Result<()> {
     let mut ioctl_ffi = UsbfsIoctlFfi::from(ioctl);
-    unsafe { ioctl::usbfs_ioctl(fd, &mut ioctl_ffi)?; }
+    unsafe {
+        ioctl::usbfs_ioctl(fd, &mut ioctl_ffi)?;
+    }
     Ok(())
 }
 
 /// USBFS Reset
 pub fn usbfs_reset(fd: i32) -> Result<()> {
-    unsafe { ioctl::usbfs_reset(fd)?; }
+    unsafe {
+        ioctl::usbfs_reset(fd)?;
+    }
     Ok(())
 }
 
-/// USBFS Clear Halt 
+/// USBFS Clear Halt
 pub fn usbfs_clear_halt(fd: i32, iface: &mut u32) -> Result<()> {
-    unsafe { ioctl::usbfs_clear_halt(fd, iface)?; }
+    unsafe {
+        ioctl::usbfs_clear_halt(fd, iface)?;
+    }
     Ok(())
 }
 
 /// USBFS Disconnect
 pub fn usbfs_disconnect(fd: i32) -> Result<()> {
-    unsafe { ioctl::usbfs_disconnect(fd)?; }
+    unsafe {
+        ioctl::usbfs_disconnect(fd)?;
+    }
     Ok(())
 }
 
 /// USBFS Connect
 pub fn usbfs_connect(fd: i32) -> Result<()> {
-    unsafe { ioctl::usbfs_connect(fd)?; }
+    unsafe {
+        ioctl::usbfs_connect(fd)?;
+    }
     Ok(())
 }
 
 /// USBFS Get Capabilities
 pub fn usbfs_get_capabilities(fd: i32, iface: &mut u32) -> Result<()> {
-    unsafe { ioctl::usbfs_get_capabilities(fd, iface)?; }
+    unsafe {
+        ioctl::usbfs_get_capabilities(fd, iface)?;
+    }
     Ok(())
 }
 
@@ -141,7 +173,9 @@ pub fn usbfs_get_capabilities(fd: i32, iface: &mut u32) -> Result<()> {
 ///
 /// The user is responsible for setting all the relevant [UsbfsDisconnectClaim] fields.
 pub fn usbfs_disconnect_claim(fd: i32, claim: &mut UsbfsDisconnectClaim) -> Result<()> {
-    unsafe { ioctl::usbfs_disconnect_claim(fd, claim)?; }
+    unsafe {
+        ioctl::usbfs_disconnect_claim(fd, claim)?;
+    }
     Ok(())
 }
 
@@ -152,7 +186,9 @@ pub fn usbfs_disconnect_claim(fd: i32, claim: &mut UsbfsDisconnectClaim) -> Resu
 /// The user is responsible for setting all the relevant [UsbfsStreams] fields.
 pub fn usbfs_alloc_streams(fd: i32, streams: &mut UsbfsStreams) -> Result<()> {
     let mut streams_ffi = UsbfsStreamsFfi::from(streams);
-    unsafe { ioctl::usbfs_alloc_streams(fd, &mut streams_ffi)?; }
+    unsafe {
+        ioctl::usbfs_alloc_streams(fd, &mut streams_ffi)?;
+    }
     Ok(())
 }
 
@@ -163,18 +199,24 @@ pub fn usbfs_alloc_streams(fd: i32, streams: &mut UsbfsStreams) -> Result<()> {
 /// The user is responsible for setting all the relevant [UsbfsStreams] fields.
 pub fn usbfs_free_streams(fd: i32, streams: &mut UsbfsStreams) -> Result<()> {
     let mut streams_ffi = UsbfsStreamsFfi::from(streams);
-    unsafe { ioctl::usbfs_free_streams(fd, &mut streams_ffi)?; }
+    unsafe {
+        ioctl::usbfs_free_streams(fd, &mut streams_ffi)?;
+    }
     Ok(())
 }
 
 /// USBFS Drop Privileges
 pub fn usbfs_drop_privileges(fd: i32, privileges: u64) -> Result<()> {
-    unsafe { ioctl::usbfs_drop_privileges(fd, privileges)?; }
+    unsafe {
+        ioctl::usbfs_drop_privileges(fd, privileges)?;
+    }
     Ok(())
 }
 
 /// USBFS Get Speed
 pub fn usbfs_get_speed(fd: i32) -> Result<()> {
-    unsafe { ioctl::usbfs_get_speed(fd)?; }
+    unsafe {
+        ioctl::usbfs_get_speed(fd)?;
+    }
     Ok(())
 }

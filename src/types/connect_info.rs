@@ -11,10 +11,12 @@ pub struct UsbfsConnectInfo {
 impl UsbfsConnectInfo {
     /// Creates a new [UsbfsConnectInfo].
     pub const fn new() -> Self {
-        Self {
-            devnum: 0,
-            slow: 0,
-        }
+        Self { devnum: 0, slow: 0 }
+    }
+
+    /// Creates a new [UsbfsConnectInfo] from the provided parameter.
+    pub const fn create(devnum: u32, slow: u8) -> Self {
+        Self { devnum, slow }
     }
 
     /// Gets the device number.
@@ -22,9 +24,31 @@ impl UsbfsConnectInfo {
         self.devnum
     }
 
+    /// Sets the device number.
+    pub fn set_devnum(&mut self, devnum: u32) {
+        self.devnum = devnum;
+    }
+
+    /// Builder function that sets the device number.
+    pub fn with_devnum(mut self, devnum: u32) -> Self {
+        self.set_devnum(devnum);
+        self
+    }
+
     /// Gets the slow field.
     pub const fn slow(&self) -> u8 {
         self.slow
+    }
+
+    /// Sets the slow number.
+    pub fn set_slow(&mut self, slow: u8) {
+        self.slow = slow;
+    }
+
+    /// Builder function that sets the slow number.
+    pub fn with_slow(mut self, slow: u8) -> Self {
+        self.set_slow(slow);
+        self
     }
 }
 
