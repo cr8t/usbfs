@@ -1,5 +1,168 @@
 use std::ffi::c_void;
 
+/// Maximum length for Control data transfers
+pub const MAX_CTRL_DATA: usize = u16::MAX as usize;
+
+/// Represents a USBFS Control transfer
+#[repr(C)]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct UsbfsCtrlTransfer {
+    bm_request_type: u8,
+    b_request: u8,
+    w_value: u16,
+    w_index: u16,
+    w_length: u16,
+    timeout: u32,
+    data: Vec<u8>,
+}
+
+impl UsbfsCtrlTransfer {
+    /// Creates a new [UsbfsCtrlTransfer].
+    pub fn new() -> Self {
+        Self {
+            bm_request_type: 0,
+            b_request: 0,
+            w_value: 0,
+            w_index: 0,
+            w_length: 0,
+            timeout: 0,
+            data: Vec::new(),
+        }
+    }
+
+    /// Gets the request type.
+    pub const fn request_type(&self) -> u8 {
+        self.bm_request_type
+    }
+
+    /// Sets the request type.
+    pub fn set_request_type(&mut self, req_type: u8) {
+        self.bm_request_type = req_type;
+    }
+
+    /// Builder function that sets the request type.
+    pub fn with_request_type(mut self, req_type: u8) -> Self {
+        self.set_request_type(req_type);
+        self
+    }
+
+    /// Gets the request.
+    pub const fn request(&self) -> u8 {
+        self.b_request
+    }
+
+    /// Sets the request.
+    pub fn set_request(&mut self, req: u8) {
+        self.b_request = req;
+    }
+
+    /// Builder function that sets the request.
+    pub fn with_request(mut self, req: u8) -> Self {
+        self.set_request(req);
+        self
+    }
+
+    /// Gets the value.
+    pub const fn value(&self) -> u16 {
+        self.w_value
+    }
+
+    /// Sets the value.
+    pub fn set_value(&mut self, value: u16) {
+        self.w_value = value;
+    }
+
+    /// Builder function that sets the value.
+    pub fn with_value(mut self, value: u16) -> Self {
+        self.set_value(value);
+        self
+    }
+
+    /// Gets the index.
+    pub const fn index(&self) -> u16 {
+        self.w_index
+    }
+
+    /// Sets the index.
+    pub fn set_index(&mut self, index: u16) {
+        self.w_index = index;
+    }
+
+    /// Builder function that sets the index.
+    pub fn with_index(mut self, index: u16) -> Self {
+        self.set_index(index);
+        self
+    }
+
+    /// Gets the length.
+    pub const fn length(&self) -> u16 {
+        self.w_length
+    }
+
+    /// Gets the timeout.
+    pub const fn timeout(&self) -> u32 {
+        self.timeout
+    }
+
+    /// Sets the timeout.
+    pub fn set_timeout(&mut self, timeout: u32) {
+        self.timeout = timeout;
+    }
+
+    /// Builder function that sets the timeout.
+    pub fn with_timeout(mut self, timeout: u32) -> Self {
+        self.set_timeout(timeout);
+        self
+    }
+
+    /// Gets a reference to the data buffer.
+    pub fn data(&self) -> &[u8] {
+        self.data.as_ref()
+    }
+
+    /// Sets the data buffer.
+    ///
+    /// **NOTE** Sets at most [`MAX_CTRL_DATA`] bytes.
+    pub fn set_data<D: IntoIterator<Item = u8>>(&mut self, data: D) {
+        self.data = data.into_iter().take(MAX_CTRL_DATA).collect();
+        self.w_length = self.data.len() as u16;
+    }
+
+    /// Builder function that sets the data buffer.
+    ///
+    /// **NOTE** Sets at most [`MAX_CTRL_DATA`] bytes.
+    pub fn with_data<D: IntoIterator<Item = u8>>(mut self, data: D) -> Self {
+        self.set_data(data);
+        self
+    }
+}
+
+impl From<&UsbfsCtrlTransferFfi> for UsbfsCtrlTransfer {
+    fn from(val: &UsbfsCtrlTransferFfi) -> Self {
+        Self {
+            bm_request_type: val.bm_request_type,
+            b_request: val.b_request,
+            w_value: val.w_value,
+            w_index: val.w_index,
+            w_length: val.w_length,
+            timeout: val.timeout,
+            data: if val.data.is_null() {
+                Vec::new()
+            } else {
+                unsafe {
+                    std::slice::from_raw_parts(val.data as *mut u8, val.w_length as usize).into()
+                }
+            },
+        }
+    }
+}
+
+impl From<UsbfsCtrlTransferFfi> for UsbfsCtrlTransfer {
+    fn from(val: UsbfsCtrlTransferFfi) -> Self {
+        (&val).into()
+    }
+}
+
 /// Represents a USBFS Control transfer passed to `ioctl` FFI
 #[repr(C)]
 #[derive(Debug, PartialEq)]
@@ -45,92 +208,5 @@ impl From<&mut UsbfsCtrlTransfer> for UsbfsCtrlTransferFfi {
             timeout: val.timeout,
             data: val.data.as_mut_ptr() as *mut _,
         }
-    }
-}
-
-/// Represents a USBFS Control transfer
-#[repr(C)]
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct UsbfsCtrlTransfer {
-    bm_request_type: u8,
-    b_request: u8,
-    w_value: u16,
-    w_index: u16,
-    w_length: u16,
-    timeout: u32,
-    data: Vec<u8>,
-}
-
-impl UsbfsCtrlTransfer {
-    /// Creates a new [UsbfsCtrlTransfer].
-    pub fn new() -> Self {
-        Self {
-            bm_request_type: 0,
-            b_request: 0,
-            w_value: 0,
-            w_index: 0,
-            w_length: 0,
-            timeout: 0,
-            data: Vec::new(),
-        }
-    }
-
-    /// Gets the request type.
-    pub const fn request_type(&self) -> u8 {
-        self.bm_request_type
-    }
-
-    /// Gets the request.
-    pub const fn request(&self) -> u8 {
-        self.b_request
-    }
-
-    /// Gets the value.
-    pub const fn value(&self) -> u16 {
-        self.w_value
-    }
-
-    /// Gets the index.
-    pub const fn index(&self) -> u16 {
-        self.w_index
-    }
-
-    /// Gets the length.
-    pub const fn length(&self) -> u16 {
-        self.w_length
-    }
-
-    /// Gets the timeout.
-    pub const fn timeout(&self) -> u32 {
-        self.timeout
-    }
-
-    /// Gets a reference to the data buffer.
-    pub fn data(&self) -> &[u8] {
-        self.data.as_ref()
-    }
-}
-
-impl From<&UsbfsCtrlTransferFfi> for UsbfsCtrlTransfer {
-    fn from(val: &UsbfsCtrlTransferFfi) -> Self {
-        Self {
-            bm_request_type: val.bm_request_type,
-            b_request: val.b_request,
-            w_value: val.w_value,
-            w_index: val.w_index,
-            w_length: val.w_length,
-            timeout: val.timeout,
-            data: if val.data.is_null() {
-                Vec::new()
-            } else {
-                unsafe { std::slice::from_raw_parts(val.data as *mut u8, val.w_length as usize).into() }
-            },
-        }
-    }
-}
-
-impl From<UsbfsCtrlTransferFfi> for UsbfsCtrlTransfer {
-    fn from(val: UsbfsCtrlTransferFfi) -> Self {
-        (&val).into()
     }
 }
