@@ -22,9 +22,31 @@ impl UsbfsStreams {
         self.num_streams
     }
 
+    /// Sets the number of streams.
+    pub fn set_num_streams(&mut self, num_streams: u32) {
+        self.num_streams = num_streams;
+    }
+
+    /// Builder function that sets the number of streams.
+    pub fn with_num_streams(mut self, num_streams: u32) -> Self {
+        self.set_num_streams(num_streams);
+        self
+    }
+
     /// Gets a reference to the list of endpoints.
     pub fn eps(&self) -> &[u8] {
         self.eps.as_ref()
+    }
+
+    /// Sets the list of endpoints.
+    pub fn set_eps<E: IntoIterator<Item = u8>>(&mut self, eps: E) {
+        self.eps = eps.into_iter().collect();
+    }
+
+    /// Builder function that sets the list of endpoints.
+    pub fn with_eps<E: IntoIterator<Item = u8>>(mut self, eps: E) -> Self {
+        self.set_eps(eps);
+        self
     }
 }
 
@@ -100,5 +122,35 @@ impl From<&mut UsbfsStreams> for UsbfsStreamsFfi {
 impl Default for UsbfsStreamsFfi {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_usbfs_streams() {
+        let exp_num_streams = 1;
+        let exp_num_eps = 1;
+        let exp_eps = [1u8];
+
+        let exp_streams = UsbfsStreams::new()
+            .with_num_streams(exp_num_streams)
+            .with_eps(exp_eps);
+
+        let mut null_streams = UsbfsStreams::new();
+
+        assert_eq!(exp_streams.num_streams(), exp_num_streams);
+        assert_eq!(exp_streams.eps(), exp_eps.as_ref());
+        assert_eq!(exp_streams.eps().len(), exp_num_eps);
+
+        null_streams.set_num_streams(exp_num_streams);
+        assert_eq!(null_streams.num_streams(), exp_num_streams);
+
+        null_streams.set_eps(exp_eps);
+        assert_eq!(null_streams.eps(), exp_eps.as_ref());
+
+        assert_eq!(null_streams, exp_streams);
     }
 }

@@ -6,12 +6,23 @@ use super::UsbfsIsoPacketDesc;
 ///
 /// The `usercontext` is an argument to USB callback completion functions.
 pub trait UrbUserContext {
-    fn as_raw_ptr(&mut self) -> *mut c_void;
+    fn as_raw_ptr(&self) -> *const c_void;
+    fn as_raw_ptr_mut(&mut self) -> *mut c_void;
 }
 
 impl UrbUserContext for () {
-    fn as_raw_ptr(&mut self) -> *mut c_void {
+    fn as_raw_ptr(&self) -> *const c_void {
+        self as *const () as *const _
+    }
+
+    fn as_raw_ptr_mut(&mut self) -> *mut c_void {
         self as *mut () as *mut _
+    }
+}
+
+impl PartialEq for dyn UrbUserContext {
+    fn eq(&self, rhs: &Self) -> bool {
+        self.as_raw_ptr() == rhs.as_raw_ptr()
     }
 }
 
@@ -67,8 +78,7 @@ impl fmt::Display for TransferInfo {
 
 /// Represents a URB record on Linux.
 #[repr(C)]
-#[derive(Debug)]
-pub struct Urb {
+pub struct Urb<'a> {
     urb_type: u8,
     endpoint: u8,
     status: i32,
@@ -79,26 +89,11 @@ pub struct Urb {
     info: TransferInfo,
     error_count: i32,
     signr: u32,
-    usercontext: Box<dyn UrbUserContext>,
+    usercontext: Option<&'a mut dyn UrbUserContext>,
     iso_frame_desc: Vec<UsbfsIsoPacketDesc>,
 }
 
-impl PartialEq for Urb {
-    fn eq(&self, rhs: &Self) -> bool {
-        self.urb_type == rhs.urb_type
-            && self.endpoint == rhs.endpoint
-            && self.status == rhs.status
-            && self.flags == rhs.flags
-            && self.buffer == rhs.buffer
-            && self.actual_length == rhs.actual_length
-            && self.info == rhs.info
-            && self.error_count == rhs.error_count
-            && self.signr == rhs.signr
-            && self.iso_frame_desc == rhs.iso_frame_desc
-    }
-}
-
-impl Urb {
+impl<'a> Urb<'a> {
     /// Creates a new [Urb].
     pub fn new() -> Self {
         Self {
@@ -112,7 +107,7 @@ impl Urb {
             info: TransferInfo::new(),
             error_count: 0,
             signr: 0,
-            usercontext: Box::new(()),
+            usercontext: None,
             iso_frame_desc: Vec::new(),
         }
     }
@@ -283,20 +278,42 @@ impl Urb {
         self
     }
 
-    /// Gets the URB usercontext.
-    pub fn usercontext(&self) -> &dyn UrbUserContext {
-        self.usercontext.as_ref()
+    /// Gets a void pointer to the [UrbUserContext].
+    ///
+    /// **WARNING** Pointer may be NULL for an unset [UrbUserContext].
+    pub fn usercontext_ptr(&self) -> *const c_void {
+        if let Some(ctx) = self.usercontext.as_ref() {
+            ctx.as_raw_ptr()
+        } else {
+            std::ptr::null()
+        }
+    }
+
+    /// Gets a mutable void pointer to the [UrbUserContext].
+    ///
+    /// **WARNING** Pointer may be NULL for an unset [UrbUserContext].
+    pub fn usercontext_ptr_mut(&mut self) -> *mut c_void {
+        if let Some(ctx) = self.usercontext.as_mut() {
+            ctx.as_raw_ptr_mut()
+        } else {
+            std::ptr::null_mut()
+        }
     }
 
     /// Sets the URB usercontext.
-    pub fn set_usercontext(&mut self, usercontext: Box<dyn UrbUserContext>) {
-        self.usercontext = usercontext;
+    pub fn set_usercontext(&mut self, usercontext: &'a mut dyn UrbUserContext) {
+        self.usercontext.replace(usercontext);
     }
 
     /// Builder function that sets the URB usercontext.
-    pub fn with_usercontext(mut self, usercontext: Box<dyn UrbUserContext>) -> Self {
+    pub fn with_usercontext(mut self, usercontext: &'a mut dyn UrbUserContext) -> Self {
         self.set_usercontext(usercontext);
         self
+    }
+
+    /// Unsets the [UrbUserContext].
+    pub fn unset_usercontext(&mut self) {
+        self.usercontext.take();
     }
 
     /// Gets the URB [UsbfsIsoPacketDesc] list.
@@ -322,7 +339,23 @@ impl Urb {
     }
 }
 
-impl fmt::Display for Urb {
+impl<'a> PartialEq for Urb<'a> {
+    fn eq(&self, rhs: &Self) -> bool {
+        self.urb_type == rhs.urb_type
+            && self.endpoint == rhs.endpoint
+            && self.status == rhs.status
+            && self.flags == rhs.flags
+            && self.buffer == rhs.buffer
+            && self.actual_length == rhs.actual_length
+            && self.info == rhs.info
+            && self.error_count == rhs.error_count
+            && self.signr == rhs.signr
+            && self.usercontext_ptr() == rhs.usercontext_ptr()
+            && self.iso_frame_desc == rhs.iso_frame_desc
+    }
+}
+
+impl<'a> fmt::Display for Urb<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
         write!(f, r#""type": {}, "#, self.urb_type)?;
@@ -367,7 +400,7 @@ impl fmt::Display for Urb {
     }
 }
 
-impl Default for Urb {
+impl<'a> Default for Urb<'a> {
     fn default() -> Self {
         Self::new()
     }
@@ -484,7 +517,7 @@ impl UrbFfi {
     }
 }
 
-impl From<&mut Urb> for UrbFfi {
+impl<'a> From<&mut Urb<'a>> for UrbFfi {
     fn from(val: &mut Urb) -> Self {
         let info = if val.iso_frame_desc.is_empty() {
             val.info.into()
@@ -510,7 +543,11 @@ impl From<&mut Urb> for UrbFfi {
             info,
             error_count: val.error_count,
             signr: val.signr,
-            usercontext: val.usercontext.as_raw_ptr(),
+            usercontext: if let Some(ctx) = val.usercontext.as_mut() {
+                ctx.as_raw_ptr_mut()
+            } else {
+                std::ptr::null_mut()
+            },
             iso_frame_desc: if val.iso_frame_desc.is_empty() {
                 std::ptr::null_mut()
             } else {
@@ -523,5 +560,102 @@ impl From<&mut Urb> for UrbFfi {
 impl Default for UrbFfi {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_urb() {
+        let exp_urb_type = 1;
+        let exp_endpoint = 2;
+        let exp_status = 3;
+        let exp_flags = 4;
+        let exp_buffer = [1u8];
+        let exp_start_frame = 5;
+        let exp_info = TransferInfo::create_isoc(1);
+        let exp_error_count = 6;
+        let exp_signr = 7;
+        let mut exp_context = ();
+        let exp_context_ptr = UrbUserContext::as_raw_ptr(&exp_context) as usize;
+        let exp_desc = [UsbfsIsoPacketDesc::new()];
+
+        let exp_urb = Urb::new()
+            .with_urb_type(exp_urb_type)
+            .with_endpoint(exp_endpoint)
+            .with_status(exp_status)
+            .with_flags(exp_flags)
+            .with_buffer(exp_buffer)
+            .with_actual_length(exp_buffer.len())
+            .with_start_frame(exp_start_frame)
+            .with_info(exp_info)
+            .with_error_count(exp_error_count)
+            .with_signr(exp_signr)
+            .with_usercontext(&mut exp_context)
+            .with_iso_frame_desc(exp_desc);
+
+        let mut null_urb = Urb::new();
+
+        assert_eq!(exp_urb.urb_type(), exp_urb_type);
+        assert_eq!(exp_urb.endpoint(), exp_endpoint);
+        assert_eq!(exp_urb.status(), exp_status);
+        assert_eq!(exp_urb.flags(), exp_flags);
+        assert_eq!(exp_urb.buffer(), exp_buffer);
+        assert_eq!(exp_urb.start_frame(), exp_start_frame);
+        assert_eq!(exp_urb.info(), &exp_info);
+        assert_eq!(exp_urb.error_count(), exp_error_count);
+        assert_eq!(exp_urb.signr(), exp_signr);
+        assert_eq!(exp_urb.usercontext_ptr() as usize, exp_context_ptr);
+        assert_eq!(exp_urb.iso_frame_desc(), exp_desc);
+
+        assert_eq!(null_urb.urb_type(), 0);
+        assert_eq!(null_urb.endpoint(), 0);
+        assert_eq!(null_urb.status(), 0);
+        assert_eq!(null_urb.flags(), 0);
+        assert_eq!(null_urb.buffer(), &[]);
+        assert_eq!(null_urb.start_frame(), 0);
+        assert_eq!(null_urb.info(), &TransferInfo::new());
+        assert_eq!(null_urb.error_count(), 0);
+        assert_eq!(null_urb.signr(), 0);
+        assert_eq!(null_urb.usercontext_ptr(), std::ptr::null());
+        assert_eq!(null_urb.iso_frame_desc(), &[]);
+
+        null_urb.set_urb_type(exp_urb_type);
+        assert_eq!(null_urb.urb_type(), exp_urb_type);
+
+        null_urb.set_endpoint(exp_endpoint);
+        assert_eq!(null_urb.endpoint(), exp_endpoint);
+
+        null_urb.set_status(exp_status);
+        assert_eq!(null_urb.status(), exp_status);
+
+        null_urb.set_flags(exp_flags);
+        assert_eq!(null_urb.flags(), exp_flags);
+
+        null_urb.set_buffer(exp_buffer);
+        assert_eq!(null_urb.buffer(), exp_buffer);
+
+        null_urb.set_start_frame(exp_start_frame);
+        assert_eq!(null_urb.start_frame(), exp_start_frame);
+
+        null_urb.set_info(exp_info);
+        assert_eq!(null_urb.info(), &exp_info);
+
+        null_urb.set_error_count(exp_error_count);
+        assert_eq!(null_urb.error_count(), exp_error_count);
+
+        null_urb.set_signr(exp_signr);
+        assert_eq!(null_urb.signr(), exp_signr);
+
+        let mut null_context = ();
+        let null_context_ptr = UrbUserContext::as_raw_ptr(&null_context) as usize;
+
+        null_urb.set_usercontext(&mut null_context);
+        assert_eq!(null_urb.usercontext_ptr() as usize, null_context_ptr);
+
+        null_urb.set_iso_frame_desc(exp_desc);
+        assert_eq!(null_urb.iso_frame_desc(), exp_desc.as_ref());
     }
 }

@@ -149,6 +149,10 @@ impl From<&UsbfsCtrlTransferFfi> for UsbfsCtrlTransfer {
             data: if val.data.is_null() {
                 Vec::new()
             } else {
+                // SAFETY: converting from raw pointer data is inherently unsafe. Besides a NULL
+                // check, there is no test for pointer validity. The memory handed to us from the
+                // kernel is assumed contiguous, valid memory, because if it's not, many things
+                // have gone wrong.
                 unsafe {
                     std::slice::from_raw_parts(val.data as *mut u8, val.w_length as usize).into()
                 }
@@ -208,5 +212,79 @@ impl From<&mut UsbfsCtrlTransfer> for UsbfsCtrlTransferFfi {
             timeout: val.timeout,
             data: val.data.as_mut_ptr() as *mut _,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_usbfs_ctrl_transfer() {
+        let mut null_xfer = UsbfsCtrlTransfer::new();
+
+        let exp_request_type = 1;
+        let exp_request = 2;
+        let exp_value = 3;
+        let exp_index = 4;
+        let exp_timeout = 5;
+        let exp_data = [42u8];
+
+        let exp_xfer = UsbfsCtrlTransfer::new()
+            .with_request_type(exp_request_type)
+            .with_request(exp_request)
+            .with_value(exp_value)
+            .with_index(exp_index)
+            .with_timeout(exp_timeout)
+            .with_data(exp_data);
+
+        assert_eq!(null_xfer.request_type(), 0);
+        assert_eq!(null_xfer.request(), 0);
+        assert_eq!(null_xfer.value(), 0);
+        assert_eq!(null_xfer.index(), 0);
+        assert_eq!(null_xfer.length(), 0);
+        assert_eq!(null_xfer.timeout(), 0);
+        assert_eq!(null_xfer.data(), &[]);
+
+        null_xfer.set_request_type(exp_request_type);
+        assert_eq!(null_xfer.request_type(), exp_request_type);
+
+        null_xfer.set_request(exp_request);
+        assert_eq!(null_xfer.request(), exp_request);
+
+        null_xfer.set_value(exp_value);
+        assert_eq!(null_xfer.value(), exp_value);
+
+        null_xfer.set_index(exp_index);
+        assert_eq!(null_xfer.index(), exp_index);
+
+        null_xfer.set_timeout(exp_timeout);
+        assert_eq!(null_xfer.timeout(), exp_timeout);
+
+        null_xfer.set_data(exp_data);
+        assert_eq!(exp_xfer.data(), exp_data.as_ref());
+        assert_eq!(exp_xfer.length(), exp_data.len() as u16);
+
+        assert_eq!(exp_xfer.request_type(), exp_request_type);
+        assert_eq!(exp_xfer.request(), exp_request);
+        assert_eq!(exp_xfer.value(), exp_value);
+        assert_eq!(exp_xfer.index(), exp_index);
+        assert_eq!(exp_xfer.length(), exp_data.len() as u16);
+        assert_eq!(exp_xfer.timeout(), exp_timeout);
+        assert_eq!(exp_xfer.data(), exp_data.as_ref());
+
+        // Check that the max data length is enforced
+        assert_eq!(
+            UsbfsCtrlTransfer::new()
+                .with_data([0u8; MAX_CTRL_DATA + 1])
+                .data(),
+            [0u8; MAX_CTRL_DATA].as_ref()
+        );
+        assert_eq!(
+            UsbfsCtrlTransfer::new()
+                .with_data([0u8; MAX_CTRL_DATA + 1])
+                .length(),
+            MAX_CTRL_DATA as u16
+        );
     }
 }
