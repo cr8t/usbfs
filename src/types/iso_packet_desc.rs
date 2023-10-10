@@ -42,7 +42,9 @@ impl UsbfsIsoPacketDesc {
 
     /// Sets the actual length.
     pub fn set_actual_length(&mut self, actual_length: u32) {
-        self.actual_length = actual_length;
+        if actual_length <= self.length {
+            self.actual_length = actual_length;
+        }
     }
 
     /// Builder function that sets the actual length.
@@ -75,5 +77,43 @@ impl fmt::Display for UsbfsIsoPacketDesc {
         write!(f, r#""actual_length": {}, "#, self.actual_length)?;
         write!(f, r#""status": {}"#, self.status)?;
         write!(f, "}}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_usbfs_iso_packet_desc() {
+        let exp_length = 1;
+        let exp_actual_length = 1;
+        let exp_status = 2;
+
+        let exp_desc = UsbfsIsoPacketDesc::new()
+            .with_length(exp_length)
+            .with_actual_length(exp_actual_length)
+            .with_status(exp_status);
+
+        let mut null_desc = UsbfsIsoPacketDesc::new();
+
+        assert_eq!(exp_desc.length(), exp_length);
+        assert_eq!(exp_desc.actual_length(), exp_actual_length);
+        assert_eq!(exp_desc.status(), exp_status);
+
+        assert_eq!(null_desc.length(), 0);
+        assert_eq!(null_desc.actual_length(), 0);
+        assert_eq!(null_desc.status(), 0);
+
+        null_desc.set_length(exp_length);
+        assert_eq!(null_desc.length(), exp_length);
+
+        null_desc.set_actual_length(exp_actual_length);
+        assert_eq!(null_desc.actual_length(), exp_actual_length);
+
+        null_desc.set_status(exp_status);
+        assert_eq!(null_desc.status(), exp_status);
+
+        assert_eq!(null_desc, exp_desc);
     }
 }

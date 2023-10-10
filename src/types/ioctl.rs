@@ -2,18 +2,43 @@ use std::{ffi::c_void, fmt};
 
 /// Convenience trait for passing data arguments to USBFS IOCTL drivers.
 pub trait UsbfsIoctlData: std::fmt::Debug {
-    fn as_raw_ptr(&mut self) -> *mut c_void;
+    fn as_raw_ptr(&self) -> *const c_void;
+    fn as_raw_ptr_mut(&mut self) -> *mut c_void;
+}
+
+impl UsbfsIoctlData for [u8] {
+    fn as_raw_ptr(&self) -> *const c_void {
+        self.as_ptr() as *const _
+    }
+
+    fn as_raw_ptr_mut(&mut self) -> *mut c_void {
+        self.as_mut_ptr() as *mut _
+    }
 }
 
 impl UsbfsIoctlData for &mut [u8] {
-    fn as_raw_ptr(&mut self) -> *mut c_void {
+    fn as_raw_ptr(&self) -> *const c_void {
+        self.as_ptr() as *const _
+    }
+
+    fn as_raw_ptr_mut(&mut self) -> *mut c_void {
         self.as_mut_ptr() as *mut _
     }
 }
 
 impl UsbfsIoctlData for Vec<u8> {
-    fn as_raw_ptr(&mut self) -> *mut c_void {
+    fn as_raw_ptr(&self) -> *const c_void {
+        self.as_ptr() as *const _
+    }
+
+    fn as_raw_ptr_mut(&mut self) -> *mut c_void {
         self.as_mut_ptr() as *mut _
+    }
+}
+
+impl PartialEq for dyn UsbfsIoctlData {
+    fn eq(&self, rhs: &Self) -> bool {
+        self.as_raw_ptr() == rhs.as_raw_ptr()
     }
 }
 
@@ -26,13 +51,13 @@ impl fmt::Display for dyn UsbfsIoctlData {
 /// Represents USBFS `ioctl` information.
 #[repr(C)]
 #[derive(Debug, Default)]
-pub struct UsbfsIoctl {
+pub struct UsbfsIoctl<'a> {
     ifno: i32,
     ioctl_code: i32,
-    data: Option<Box<dyn UsbfsIoctlData>>,
+    data: Option<&'a mut dyn UsbfsIoctlData>,
 }
 
-impl UsbfsIoctl {
+impl<'a> UsbfsIoctl<'a> {
     /// Creates a new [UsbfsIoctl].
     pub fn new() -> Self {
         Self {
@@ -74,41 +99,60 @@ impl UsbfsIoctl {
         self
     }
 
-    /// Gets the data argument.
-    pub fn data(&mut self) -> Option<&dyn UsbfsIoctlData> {
-        self.data.as_ref().map(|d| d.as_ref())
+    /// Gets the data argument as a mutable FFI pointer.
+    ///
+    /// **SAFETY**: the result may be null if there is no `data` argument.
+    /// Users should not directly dereference the pointer.
+    pub fn data_ptr(&self) -> *const c_void {
+        if let Some(data) = self.data.as_ref() {
+            data.as_raw_ptr()
+        } else {
+            std::ptr::null()
+        }
     }
 
     /// Gets the data argument as a mutable FFI pointer.
     ///
     /// **SAFETY**: the result may be null if there is no `data` argument.
     /// Users should not directly dereference the pointer.
-    pub fn data_ptr(&mut self) -> *mut c_void {
+    pub fn data_ptr_mut(&mut self) -> *mut c_void {
         if let Some(data) = self.data.as_mut() {
-            data.as_raw_ptr()
+            data.as_raw_ptr_mut()
         } else {
             std::ptr::null_mut()
         }
     }
 
     /// Sets the data argument.
-    pub fn set_data(&mut self, data: Box<dyn UsbfsIoctlData>) {
-        self.data = Some(data);
+    pub fn set_data(&mut self, data: &'a mut dyn UsbfsIoctlData) {
+        self.data.replace(data);
     }
 
     /// Builder function that sets the data argument.
-    pub fn with_data(mut self, data: Box<dyn UsbfsIoctlData>) -> Self {
+    pub fn with_data(mut self, data: &'a mut dyn UsbfsIoctlData) -> Self {
         self.set_data(data);
         self
     }
 
     /// Unsets the data argument.
-    pub fn unset_data(&mut self) -> Option<Box<dyn UsbfsIoctlData>> {
-        self.data.take()
+    pub fn unset_data(&mut self) {
+        self.data.take();
     }
 }
 
-impl fmt::Display for UsbfsIoctl {
+impl<'a> PartialEq for UsbfsIoctl<'a> {
+    fn eq(&self, rhs: &Self) -> bool {
+        self.ifno == rhs.ifno
+            && self.ioctl_code == rhs.ioctl_code
+            && match (self.data.as_ref(), rhs.data.as_ref()) {
+                (Some(d), Some(rd)) => d.as_raw_ptr() == rd.as_raw_ptr(),
+                (None, None) => true,
+                _ => false,
+            }
+    }
+}
+
+impl<'a> fmt::Display for UsbfsIoctl<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
         write!(f, r#""ifno": {}, "#, self.ifno)?;
@@ -136,12 +180,12 @@ impl UsbfsIoctlFfi {
     }
 }
 
-impl From<&mut UsbfsIoctl> for UsbfsIoctlFfi {
-    fn from(val: &mut UsbfsIoctl) -> Self {
+impl<'a> From<&mut UsbfsIoctl<'a>> for UsbfsIoctlFfi {
+    fn from(val: &mut UsbfsIoctl<'a>) -> Self {
         Self {
             ifno: val.ifno,
             ioctl_code: val.ioctl_code,
-            data: val.data_ptr(),
+            data: val.data_ptr_mut(),
         }
     }
 }
@@ -149,5 +193,51 @@ impl From<&mut UsbfsIoctl> for UsbfsIoctlFfi {
 impl Default for UsbfsIoctlFfi {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_usbfs_ioctl_data() {
+        let mut exp_data = [0u8; 128];
+        let exp_ptr = exp_data.as_mut_ptr() as usize;
+
+        assert_eq!(
+            UsbfsIoctlData::as_raw_ptr(exp_data.as_mut()) as usize,
+            exp_ptr
+        );
+    }
+
+    #[test]
+    fn test_usbfs_ioctl() {
+        let exp_ifno = 1;
+        let exp_ioctl_code = 2;
+        let mut exp_data = [42u8; 128];
+        let exp_data_ptr = exp_data.as_ptr() as usize;
+        let mut exp_data_mut = exp_data.as_mut();
+
+        let mut exp_ioctl = UsbfsIoctl::new()
+            .with_ifno(exp_ifno)
+            .with_ioctl_code(exp_ioctl_code)
+            .with_data(&mut exp_data_mut);
+
+        assert_eq!(exp_ioctl.ifno(), exp_ifno);
+        assert_eq!(exp_ioctl.ioctl_code(), exp_ioctl_code);
+        assert_eq!(exp_ioctl.data_ptr() as usize, exp_data_ptr);
+
+        let mut null_ioctl = UsbfsIoctl::new();
+
+        assert_eq!(null_ioctl.ifno(), 0);
+        assert_eq!(null_ioctl.ioctl_code(), 0);
+        assert_eq!(null_ioctl.data_ptr(), std::ptr::null());
+
+        null_ioctl.set_ifno(exp_ifno);
+        null_ioctl.set_ioctl_code(exp_ioctl_code);
+        exp_ioctl.unset_data();
+
+        assert_eq!(null_ioctl, exp_ioctl);
     }
 }

@@ -29,7 +29,12 @@ impl DriverName {
 
     /// Gets a [`&str`] representation of the [DriverName].
     pub fn as_str(&self) -> &str {
-        std::str::from_utf8(self.0.as_ref()).unwrap_or("")
+        let len = self.driver_len();
+        std::str::from_utf8(self.0[..len].as_ref()).unwrap_or("")
+    }
+
+    fn driver_len(&self) -> usize {
+        self.0.iter().position(|&b| b == 0).unwrap_or(0)
     }
 }
 

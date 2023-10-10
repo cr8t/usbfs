@@ -50,6 +50,17 @@ impl UsbfsSetInterface {
     pub const fn altsetting(&self) -> u32 {
         self.altsetting
     }
+
+    /// Sets the altsetting.
+    pub fn set_altsetting(&mut self, altsetting: u32) {
+        self.altsetting = altsetting;
+    }
+
+    /// Builder function that sets the altsetting.
+    pub fn with_altsetting(mut self, altsetting: u32) -> Self {
+        self.set_altsetting(altsetting);
+        self
+    }
 }
 
 impl fmt::Display for UsbfsSetInterface {
@@ -58,5 +69,37 @@ impl fmt::Display for UsbfsSetInterface {
         write!(f, r#""interface": {}, "#, self.interface)?;
         write!(f, r#""altsetting": {}"#, self.altsetting)?;
         write!(f, "}}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_usbfs_set_interface() {
+        let exp_interface = 1;
+        let exp_altsetting = 2;
+        let exp_iface = UsbfsSetInterface::create(exp_interface, exp_altsetting);
+        let mut null_iface = UsbfsSetInterface::new();
+
+        assert_eq!(exp_iface.interface(), exp_interface);
+        assert_eq!(exp_iface.altsetting(), exp_altsetting);
+
+        assert_eq!(null_iface.interface(), 0);
+        assert_eq!(null_iface.altsetting(), 0);
+
+        null_iface.set_interface(exp_interface);
+        assert_eq!(null_iface.interface(), exp_interface);
+
+        null_iface.set_altsetting(exp_altsetting);
+        assert_eq!(null_iface.altsetting(), exp_altsetting);
+
+        assert_eq!(
+            UsbfsSetInterface::new()
+                .with_interface(exp_interface)
+                .with_altsetting(exp_altsetting),
+            exp_iface
+        );
     }
 }

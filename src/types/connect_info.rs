@@ -60,3 +60,35 @@ impl fmt::Display for UsbfsConnectInfo {
         write!(f, "}}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_usbfs_connect_info() {
+        let exp_devnum = 42;
+        let exp_slow = 1;
+
+        let exp_info = UsbfsConnectInfo::create(exp_devnum, exp_slow);
+        let mut null_info = UsbfsConnectInfo::new();
+
+        assert_eq!(exp_info.devnum(), exp_devnum);
+        assert_eq!(exp_info.slow(), exp_slow);
+
+        assert_eq!(null_info.devnum(), 0);
+        assert_eq!(null_info.slow(), 0);
+
+        null_info.set_devnum(exp_devnum);
+        assert_eq!(null_info.devnum(), exp_devnum);
+
+        null_info.set_slow(exp_slow);
+        assert_eq!(null_info.slow(), exp_slow);
+
+        assert_eq!(
+            UsbfsConnectInfo::new().with_devnum(exp_devnum).devnum(),
+            exp_devnum
+        );
+        assert_eq!(UsbfsConnectInfo::new().with_slow(exp_slow).slow(), exp_slow);
+    }
+}
